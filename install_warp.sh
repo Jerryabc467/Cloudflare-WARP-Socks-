@@ -87,7 +87,15 @@ echo "=== 检查 wireproxy 状态 ==="
 sudo systemctl status wireproxy --no-pager
 
 echo "=== 测试 WARP 是否生效 ==="
-curl --socks5 127.0.0.1:${SOCKS_PORT} https://www.cloudflare.com/cdn-cgi/trace | grep warp
+for i in {1..5}; do
+    if curl --socks5 127.0.0.1:${SOCKS_PORT} https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -q warp; then
+        echo "warp=on ✅"
+        break
+    else
+        echo "等待 wireproxy 启动，重试 $i/5 ..."
+        sleep 2
+    fi
+done
 
 echo "=== 安装完成 ==="
 echo "配置信息："
