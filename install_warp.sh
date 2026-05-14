@@ -1,13 +1,20 @@
+#!/bin/bash
 set -e
 
 WARP_DIR="/etc/x-ui/warp"
+MARKER_FILE="${WARP_DIR}/.installed"
 
+# --- 检测是否已经执行过 ---
+if [ -f "$MARKER_FILE" ]; then
+    echo "检测到 WireProxy WARP 已经安装过，脚本已退出。"
+    exit 0
+fi
 
+# --- 输入 SOCKS5 端口，并检测占用 ---
 while true; do
     read -p "请输入 SOCKS5 端口（默认 40000）： " SOCKS_PORT
     SOCKS_PORT=${SOCKS_PORT:-40000}
 
-    # 检查端口是否被占用
     if ss -lnt | grep -q ":${SOCKS_PORT} "; then
         echo "端口 ${SOCKS_PORT} 已被占用，请输入其他端口。"
     else
@@ -23,7 +30,8 @@ cd $WARP_DIR
 
 echo "=== 安装依赖 ==="
 sudo apt update
-sudo apt install -y curl wget tar unzip
+# 安装 curl wget tar unzip ss 命令
+sudo apt install -y curl wget tar unzip iproute2
 
 echo "=== 下载 wgcf ==="
 wget -O wgcf https://github.com/ViRb3/wgcf/releases/download/v2.2.30/wgcf_2.2.30_linux_386
@@ -83,9 +91,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable wireproxy
 sudo systemctl start wireproxy
 
-echo "=== 检查 wireproxy 状态 ==="
-sudo systemctl status wireproxy --no-pager
+# --- 等待服务启动 ---
+sleep 3
 
+# --- 测试 WARP 是否生效 ---
 echo "=== 测试 WARP 是否生效 ==="
 for i in {1..5}; do
     if curl --socks5 127.0.0.1:${SOCKS_PORT} https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -q warp; then
@@ -96,6 +105,9 @@ for i in {1..5}; do
         sleep 2
     fi
 done
+
+# --- 标记已安装 ---
+touch "$MARKER_FILE"
 
 echo "=== 安装完成 ==="
 echo "配置信息："
